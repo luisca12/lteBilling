@@ -3,6 +3,8 @@ from functions import checkIsDigit
 from strings import inputErrorString, menuString, greetingString
 
 import pandas as pd
+import json
+import socket
 import openpyxl
 import traceback
 import sys
@@ -10,11 +12,13 @@ import re
 import os
 
 outFile = "Filtered file with Phone Number, IP and site code.xlsx"
+openGearFile = "OpenGear IPs.xlsx"
 
 openGearPatt = re.compile(r'opengear', re.IGNORECASE)
 newNumberList = []
 newStaticIP = []
 newSiteCode = []
+openGearHostNames = []
 
 def lteBilling():
 
@@ -66,28 +70,43 @@ def lteBilling():
         dataFrame.to_excel(outFile, index=False)
 
         filteredSheet = pd.read_excel(outFile, sheet_name=0)
+        authLog.info(f"Successfully loaded file: {outFile}")
 
         filteredSheetValues = filteredSheet.iloc[:, [0, 1]].astype(str)
+        authLog.info(f"Successfully loaded sheet index 0 and 1 from: {filteredSheet}")
 
         # for item, item1 in zip(filteredSheetValues.iloc[:, 0], filteredSheetValues.iloc[:, 1]):
         #     print(f"{item}:{item1}")
 
         #  Create a lookup dictionary from verizonSheet
         lookup_dict = dict(zip(filteredSheetValues.iloc[:, 0], filteredSheetValues.iloc[:, 1]))
+        authLog.info(f"Successfully created a dictionary from: {filteredSheet}:\n{json.dumps(lookup_dict, indent=4)}")
 
         # print(lookup_dict)
 
-        print(generalListSheet_values)
-
-        for key,val in lookup_dict.items():
-            if '3174719505' in key:
-                print(f"Math found: 3174719505 : {key}")
+        # print(generalListSheet_values)
 
         # Map the values from generalListSheet Column B using the lookup
         generalListSheet['Matched Value From Filtered File and Enterprise M2M Account'] = generalListSheet_values.map(lookup_dict)
+        authLog.info(f"Successfully matched Phone Numbers between sheets and appended the value to 'Matched Value From Filtered File and Enterprise M2M Account'")
+        authLog.info(f"General List Sheet:\n{generalListSheet}")
+
+        authLog.info(f"Starting to resolve IPs to their DNS lookup")
+        for ip in generalListSheet:
+            try:
+                hostname = socket.gethostbyaddr(ip)
+                authLog.info(f"Host name for IP {ip} is: {hostname[0]}, from file: {file}")
+                openGearHostNames.append(hostname)
+            except socket.herror:
+                authLog.error(f"Unable to resolve IP {ip}, from file {file}")
+                pass
+        
+        generalListSheet['Phone Numbers assigned to Opengears'] = openGearHostNames
+        authLog.info(f"Successfully appended the FQDN from IPs to the file: {openGearFile},\n{generalListSheet}")
 
         # Optionally, save the updated generalListSheet to a new Excel file
-        generalListSheet.to_excel('OpenGear IPs.xlsx', index=False)
+        generalListSheet.to_excel(openGearFile, index=False)
+        authLog.info(f"Successfully created new file: {openGearFile}")
 
     except FileNotFoundError:
         print(f"Couldn't find file {file}. Please check the file name and try again, remember to include the .xlsx")
