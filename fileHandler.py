@@ -91,22 +91,34 @@ def lteBilling():
         authLog.info(f"Successfully matched Phone Numbers between sheets and appended the value to 'Matched Value From Filtered File and Enterprise M2M Account'")
         authLog.info(f"General List Sheet:\n{generalListSheet}")
 
-        authLog.info(f"Starting to resolve IPs to their DNS lookup")
-        for ip in generalListSheet:
-            try:
-                hostname = socket.gethostbyaddr(ip)
-                authLog.info(f"Host name for IP {ip} is: {hostname[0]}, from file: {file}")
-                openGearHostNames.append(hostname)
-            except socket.herror:
-                authLog.error(f"Unable to resolve IP {ip}, from file {file}")
-                pass
         
-        generalListSheet['Phone Numbers assigned to Opengears'] = openGearHostNames
-        authLog.info(f"Successfully appended the FQDN from IPs to the file: {openGearFile},\n{generalListSheet}")
-
         # Optionally, save the updated generalListSheet to a new Excel file
         generalListSheet.to_excel(openGearFile, index=False)
         authLog.info(f"Successfully created new file: {openGearFile}")
+        
+        openGearFileSheet = pd.read_excel(openGearFile, sheet_name=0)
+        authLog.info(f"openGearFileSheet loaded successfully from: {openGearFile}\n {openGearFileSheet}")
+        
+        openGearFileSheetValues = list(openGearFileSheet.iloc[:,13].astype(str))
+        authLog.info(f"Successfully loaded sheet index 0 from: {openGearFile}")
+        
+        authLog.info(f"Starting to resolve IPs to their DNS lookup")
+        
+        for ip in openGearFileSheetValues:
+            authLog.info(f"Current value of IP is {ip}")
+            try:
+                hostname = socket.gethostbyaddr(ip)
+                authLog.info(f"Host name for IP {ip} is: {hostname[0]}, from file: {file}")
+                print(f"Host name for IP {ip} is: {hostname[0]}, from file: {file}")
+                openGearHostNames.append(hostname)
+            except Exception as error:
+                openGearHostNames.append(ip)
+                authLog.error(f"Unable to resolve IP {ip}, from file {file}, error: {error}")
+                continue
+        
+        generalListSheet['Phone Numbers assigned to Opengears'] = openGearHostNames
+        authLog.info(f"Successfully appended the FQDN from IPs to the file: {openGearFile},\n{generalListSheet}")
+        generalListSheet.to_excel(openGearFile, index=False)
 
     except FileNotFoundError:
         print(f"Couldn't find file {file}. Please check the file name and try again, remember to include the .xlsx")
@@ -115,5 +127,5 @@ def lteBilling():
 
     except Exception as error:
         print(f"Got an error when trying to load the workbook from file: {file}, error: {error}")
-        authLog.error(f"Wasn't possible to choose the XLSX file: {file}, error message: {error}\n{traceback.format_exc()}")
+        authLog.error(f"Error: {error}\n{traceback.format_exc()}")
         os.system("PAUSE")
